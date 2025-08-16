@@ -6,6 +6,7 @@ import { useLanguage } from '@/contexts/LanguageContext';
 import { jobs, servers } from '@/data/bosses';
 import { X, Save, User } from 'lucide-react';
 import { useAccount } from 'wagmi';
+import { ReputationBadge, ReputationHistory } from './ReputationBadge';
 
 interface PlayerProfileModalProps {
   isOpen: boolean;
@@ -79,9 +80,16 @@ export function PlayerProfileModal({ isOpen, onClose }: PlayerProfileModalProps)
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center space-x-3">
               <User className="w-6 h-6 text-maple-blue" />
-              <h2 className="text-2xl font-display font-bold text-maple-dark">
-                {profile ? t.profile.editProfile : t.profile.createProfile}
-              </h2>
+              <div>
+                <h2 className="text-2xl font-display font-bold text-maple-dark">
+                  {profile ? t.profile.editProfile : t.profile.createProfile}
+                </h2>
+                {profile && (
+                  <div className="mt-1">
+                    <ReputationBadge reputation={profile.reputation || 100} size="sm" showProgress />
+                  </div>
+                )}
+              </div>
             </div>
             <button
               onClick={onClose}
@@ -232,6 +240,13 @@ export function PlayerProfileModal({ isOpen, onClose }: PlayerProfileModalProps)
               </button>
             </div>
           </form>
+
+          {/* Reputation History */}
+          {profile && profile.reputationHistory && (
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <ReputationHistory history={profile.reputationHistory} maxItems={5} />
+            </div>
+          )}
         </div>
       </div>
     </div>

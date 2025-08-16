@@ -3,21 +3,47 @@
 import { usePlayerSession } from '@/hooks/usePlayerSession';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { getBossById } from '@/data/bosses';
-import { Users, Clock, Shield, Crown, UserPlus, UserMinus, Trash2 } from 'lucide-react';
+import { Users, Clock, Shield, Crown, UserPlus, UserMinus, Trash2, MessageCircle } from 'lucide-react';
 import { useState } from 'react';
+import { PartyChat } from './PartyChat';
 
 interface PartyListProps {
   onCreateParty: () => void;
 }
 
 export function PartyList({ onCreateParty }: PartyListProps) {
-  const { parties, profile, joinParty, leaveParty, deleteParty, myParties } = usePlayerSession();
+  const { parties, profile, joinParty, leaveParty, deleteParty } = usePlayerSession();
   const { t } = useLanguage();
   const [filter, setFilter] = useState({
     difficulty: '',
     server: '',
     bossName: '',
   });
+  const [openChats, setOpenChats] = useState<string[]>([]);
+
+  const openChat = (partyId: string) => {
+    setOpenChats(prev => [...prev, partyId]);
+  };
+
+  const closeChat = (partyId: string) => {
+    setOpenChats(prev => prev.filter(id => id !== partyId));
+  };
+
+  const handleJoinParty = async (partyId: string) => {
+    const success = await joinParty(partyId);
+    if (success) {
+      // Abrir chat automaticamente ao entrar na party
+      openChat(partyId);
+    }
+  };
+
+  const handleLeaveParty = async (partyId: string) => {
+    const success = await leaveParty(partyId);
+    if (success) {
+      // Fechar chat ao sair da party
+      closeChat(partyId);
+    }
+  };
 
   const filteredParties = parties.filter(party => {
     if (filter.difficulty && getBossById(party.bossName)?.difficulty !== filter.difficulty) return false;
@@ -44,18 +70,6 @@ export function PartyList({ onCreateParty }: PartyListProps) {
       extreme: 'bg-boss-extreme',
     };
     return colors[difficulty as keyof typeof colors] || 'bg-gray-500';
-  };
-
-  const handleJoinParty = (partyId: string) => {
-    if (!profile) {
-      alert(t.messages.profileNeeded);
-      return;
-    }
-    joinParty(partyId);
-  };
-
-  const handleLeaveParty = (partyId: string) => {
-    leaveParty(partyId);
   };
 
   const handleDeleteParty = (partyId: string) => {
@@ -183,13 +197,22 @@ export function PartyList({ onCreateParty }: PartyListProps) {
                   </div>
                   
                   {isHost && (
-                    <button
-                      onClick={() => handleDeleteParty(party.id)}
-                      className="text-red-500 hover:text-red-700 p-2"
-                      title="Excluir party"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => openChat(party.id)}
+                        className="text-green-500 hover:text-green-700 p-2"
+                        title="Open Chat"
+                      >
+                        <MessageCircle className="w-5 h-5" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteParty(party.id)}
+                        className="text-red-500 hover:text-red-700 p-2"
+                        title="Excluir party"
+                      >
+                        <Trash2 className="w-5 h-5" />
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -260,13 +283,21 @@ export function PartyList({ onCreateParty }: PartyListProps) {
                       <span>{t.party.joinParty}</span>
                     </button>
                   ) : isMember && !isHost ? (
-                    <button
-                      onClick={() => handleLeaveParty(party.id)}
-                      className="maple-button flex-1 py-2 text-sm bg-red-500 hover:bg-red-600 flex items-center justify-center space-x-2"
-                    >
-                      <UserMinus className="w-4 h-4" />
-                      <span>{t.party.leaveParty}</span>
-                    </button>
+                    <>
+                      <button
+                        onClick={() => openChat(party.id)}
+                        className="maple-button py-2 px-3 text-sm bg-green-500 hover:bg-green-600 flex items-center justify-center"
+                      >
+                        <MessageCircle className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleLeaveParty(party.id)}
+                        className="maple-button flex-1 py-2 text-sm bg-red-500 hover:bg-red-600 flex items-center justify-center space-x-2"
+                      >
+                        <UserMinus className="w-4 h-4" />
+                        <span>{t.party.leaveParty}</span>
+                      </button>
+                    </>
                   ) : !profile ? (
                     <div className="flex-1 text-center text-sm text-gray-500 py-2">
     {t.party.createProfileFirst}
@@ -286,6 +317,22 @@ export function PartyList({ onCreateParty }: PartyListProps) {
           })
         )}
       </div>
+
+      {/* Render open chats */}
+      {openChats.map((partyId) => {
+        const party = parties.find(p => p.id === partyId);
+        if (!party) return null;
+
+        return (
+          <PartyChat
+            key={partyId}
+            partyId={partyId}
+            partyName={party.bossName}
+            members={party.members}
+            onClose={() => closeChat(partyId)}
+          />
+        );
+      })}
     </div>
   );
 }

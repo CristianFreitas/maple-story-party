@@ -54,184 +54,157 @@ export function usePlayerSessionV2() {
   const [parties, setParties] = useState<PartyListing[]>([]);
   const [myParties, setMyParties] = useLocalStorage<string[]>('mapleMyParties', []);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setIsLoggedIn(!!profile);
   }, [profile]);
-
-  // Check backend availability
-  useEffect(() => {
-    const checkBackend = async () => {
-      try {
-        const response = await fetch('http://localhost:3002/health');
-        setBackendAvailable(response.ok);
-      } catch (error) {
-        setBackendAvailable(false);
-      }
-    };
-    
-    checkBackend();
-  }, []);
-
-  // Sync profile with backend when available
-  useEffect(() => {
-    if (profile && backendAvailable) {
-      syncProfileToBackend(profile);
-    }
-  }, [profile, backendAvailable]);
-
-  // Load parties from backend or localStorage
-  useEffect(() => {
-    if (backendAvailable) {
-      loadPartiesFromBackend();
-    } else {
-      loadPartiesFromLocalStorage();
-    }
-  }, [backendAvailable]);
-
-  const syncProfileToBackend = async (playerProfile: PlayerProfile) => {
-    try {
-      const response = await playerApi.createOrUpdate({
-        uniqueId: playerProfile.uniqueId,
-        name: playerProfile.name,
-        level: playerProfile.level,
-        job: playerProfile.job,
-        server: playerProfile.server,
-        walletAddress: playerProfile.walletAddress,
-        favoriteClasses: playerProfile.favoriteClasses,
-        preferredDifficulty: playerProfile.preferredDifficulty,
-      });
-
-      if (!response.success) {
-        console.warn('Failed to sync profile to backend:', response.error);
-      }
-    } catch (error) {
-      console.warn('Backend sync failed:', error);
-    }
-  };
-
-  const loadPartiesFromBackend = async () => {
-    try {
-      const response = await partyApi.list({ limit: 50 });
-      if (response.success && response.data) {
-        setParties(response.data);
-      }
-    } catch (error) {
-      console.error('Failed to load parties from backend:', error);
-      // Fallback to localStorage
-      loadPartiesFromLocalStorage();
-    }
-  };
-
-  const loadPartiesFromLocalStorage = () => {
-    try {
-      const storedParties = localStorage.getItem('maplePartyListings');
-      if (storedParties) {
-        const parsedParties = JSON.parse(storedParties);
-        setParties(parsedParties);
-      }
-    } catch (error) {
-      console.error('Error loading parties from localStorage:', error);
-    }
-  };
 
   // Function to generate a unique user-friendly ID
   const generateUniqueId = () => {
     const adjectives = ['Brave', 'Mighty', 'Swift', 'Noble', 'Epic', 'Legendary', 'Divine', 'Mystic', 'Shadow', 'Fire'];
     const nouns = ['Warrior', 'Mage', 'Archer', 'Knight', 'Hero', 'Champion', 'Hunter', 'Guardian', 'Master', 'Legend'];
     const numbers = Math.floor(Math.random() * 9999).toString().padStart(4, '0');
-    
+
     const adjective = adjectives[Math.floor(Math.random() * adjectives.length)];
     const noun = nouns[Math.floor(Math.random() * nouns.length)];
-    
+
     return `${adjective}${noun}${numbers}`;
   };
 
+  // Load parties from backend
+  const loadParties = async () => {
+    try {
+      setLoading(true);
+      const backendParties = await partyApi.getParties();
+      
+      // Transform backend data to frontend format
+      const transformedParties: PartyListing[] = backendParties.map((party: Record<string, any>) => ({
+        id: party.id,
+        hostId: party.host_id,
+        hostName: party.host_name,
+        bossName: party.boss_name,
+        difficulty: party.difficulty,
+        currentMembers: party.current_members,
+        maxMembers: party.max_members,
+        scheduledTime: party.scheduled_time ? new Date(party.scheduled_time).getTime() : undefined,
+        server: party.server,
+        requirements: party.requirements || '',
+        description: party.description || '',
+        isPrivate: party.is_private || false,
+        allowedPlayers: party.allowed_players || [],
+        createdAt: new Date(party.created_at).getTime(),
+        members: (party.party_members || []).map((member: Record<string, any>) => ({
+          id: member.player_id,
+          name: member.player_name,
+          level: member.level,
+          job: member.job,
+          joinedAt: new Date(member.joined_at).getTime(),
+          isHost: member.is_host || false,
+        })),
+        invites: (party.party_invites || []).map((invite: Record<string, any>) => ({
+          id: invite.id,
+          invitedPlayerName: invite.invited_player_name,
+          status: invite.status,
+          createdAt: new Date(invite.created_at).getTime(),
+        })),
+      }));
+
+      setParties(transformedParties);
+      setError(null);
+    } catch (err) {
+      console.error('Error loading parties:', err);
+      setError('Failed to load parties');
+      // Fallback to localStorage
+      const localParties = localStorage.getItem('maplePartyListings');
+      if (localParties) {
+        try {
+          setParties(JSON.parse(localParties));
+        } catch (e) {
+          console.error('Error parsing local parties:', e);
+          setParties([]);
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Load parties on mount
+  useEffect(() => {
+    loadParties();
+  }, []);
+
   const createProfile = async (profileData: Omit<PlayerProfile, 'id' | 'uniqueId' | 'createdAt' | 'lastActive'>) => {
+    const uniqueId = generateUniqueId();
     const newProfile: PlayerProfile = {
       ...profileData,
       id: crypto.randomUUID(),
-      uniqueId: generateUniqueId(),
+      uniqueId,
       createdAt: Date.now(),
       lastActive: Date.now(),
     };
 
-    setProfile(newProfile);
-
-    // Sync to backend if available
-    if (backendAvailable) {
-      await syncProfileToBackend(newProfile);
+    try {
+      // Try to create in backend
+      await playerApi.createPlayer({
+        uniqueId: newProfile.uniqueId,
+        name: newProfile.name,
+        level: newProfile.level,
+        job: newProfile.job,
+        server: newProfile.server,
+        walletAddress: newProfile.walletAddress,
+        favoriteClasses: newProfile.favoriteClasses,
+        preferredDifficulty: newProfile.preferredDifficulty,
+      });
+      
+      setProfile(newProfile);
+      return newProfile;
+    } catch (err) {
+      console.error('Error creating profile in backend:', err);
+      // Fallback to localStorage
+      setProfile(newProfile);
+      return newProfile;
     }
-
-    return newProfile;
   };
 
   const updateProfile = async (updates: Partial<PlayerProfile>) => {
-    if (profile) {
-      const updatedProfile = {
-        ...profile,
-        ...updates,
-        lastActive: Date.now(),
-      };
-      
-      setProfile(updatedProfile);
-
-      // Sync to backend if available
-      if (backendAvailable) {
-        await syncProfileToBackend(updatedProfile);
-      }
-
-      return updatedProfile;
-    }
-    return null;
-  };
-
-  const logout = () => {
-    setProfile(null);
-    setMyParties([]);
-  };
-
-  const createParty = async (partyData: Omit<PartyListing, 'id' | 'hostId' | 'hostName' | 'createdAt' | 'members'>) => {
     if (!profile) return null;
 
-    if (backendAvailable) {
-      try {
-        const response = await partyApi.create({
-          hostId: profile.id,
-          hostName: profile.name,
-          bossName: partyData.bossName,
-          difficulty: partyData.difficulty,
-          maxMembers: partyData.maxMembers,
-          scheduledTime: partyData.scheduledTime,
-          server: partyData.server,
-          requirements: partyData.requirements,
-          description: partyData.description,
-          isPrivate: partyData.isPrivate || false,
-          allowedPlayers: partyData.allowedPlayers || [],
-        });
+    const updatedProfile = { ...profile, ...updates, lastActive: Date.now() };
 
-        if (response.success) {
-          await loadPartiesFromBackend(); // Refresh parties list
-          setMyParties(prev => [response.data.id, ...prev]);
-          return response.data;
-        } else {
-          throw new Error(response.error);
-        }
-      } catch (error) {
-        console.error('Failed to create party on backend:', error);
-        // Fallback to localStorage
-      }
+    try {
+      // Try to update in backend
+      await playerApi.updatePlayer(profile.id, {
+        name: updatedProfile.name,
+        level: updatedProfile.level,
+        job: updatedProfile.job,
+        server: updatedProfile.server,
+        walletAddress: updatedProfile.walletAddress,
+        favoriteClasses: updatedProfile.favoriteClasses,
+        preferredDifficulty: updatedProfile.preferredDifficulty,
+      });
+
+      setProfile(updatedProfile);
+      return updatedProfile;
+    } catch (err) {
+      console.error('Error updating profile in backend:', err);
+      // Fallback to localStorage
+      setProfile(updatedProfile);
+      return updatedProfile;
     }
+  };
 
-    // LocalStorage fallback
+  const createParty = async (partyData: Omit<PartyListing, 'id' | 'hostId' | 'hostName' | 'currentMembers' | 'createdAt' | 'members' | 'invites'>) => {
+    if (!profile) return null;
+
     const newParty: PartyListing = {
       ...partyData,
       id: crypto.randomUUID(),
       hostId: profile.id,
       hostName: profile.name,
-      isPrivate: partyData.isPrivate || false,
-      allowedPlayers: partyData.allowedPlayers || [],
+      currentMembers: 1,
       createdAt: Date.now(),
       members: [{
         id: profile.id,
@@ -241,193 +214,167 @@ export function usePlayerSessionV2() {
         joinedAt: Date.now(),
         isHost: true,
       }],
+      invites: [],
     };
 
-    const updatedParties = [newParty, ...parties];
-    setParties(updatedParties);
-    setMyParties(prev => [newParty.id, ...prev]);
-    
-    // Save to localStorage as backup
-    localStorage.setItem('maplePartyListings', JSON.stringify(updatedParties));
-    
-    return newParty;
-  };
-
-  const joinParty = async (partyId: string) => {
-    if (!profile) return false;
-
-    if (backendAvailable) {
-      try {
-        const response = await partyApi.join(partyId, {
-          playerId: profile.id,
-          playerName: profile.name,
-        });
-
-        if (response.success) {
-          await loadPartiesFromBackend(); // Refresh parties list
-          setMyParties(prev => [...prev, partyId]);
-          return true;
-        } else {
-          throw new Error(response.error);
-        }
-      } catch (error) {
-        console.error('Failed to join party on backend:', error);
-        alert(error instanceof Error ? error.message : 'Failed to join party');
-        return false;
-      }
-    }
-
-    // LocalStorage fallback
-    const updatedParties = parties.map(party => {
-      if (party.id === partyId && party.currentMembers < party.maxMembers) {
-        const alreadyMember = party.members.some(member => member.id === profile.id);
-        if (!alreadyMember) {
-          return {
-            ...party,
-            currentMembers: party.currentMembers + 1,
-            members: [...party.members, {
-              id: profile.id,
-              name: profile.name,
-              level: profile.level,
-              job: profile.job,
-              joinedAt: Date.now(),
-            }],
-          };
-        }
-      }
-      return party;
-    });
-
-    setParties(updatedParties);
-    setMyParties(prev => [...prev, partyId]);
-    localStorage.setItem('maplePartyListings', JSON.stringify(updatedParties));
-    return true;
-  };
-
-  const leaveParty = async (partyId: string) => {
-    if (!profile) return false;
-
-    if (backendAvailable) {
-      try {
-        const response = await partyApi.leave(partyId, profile.id);
-
-        if (response.success) {
-          await loadPartiesFromBackend(); // Refresh parties list
-          setMyParties(prev => prev.filter(id => id !== partyId));
-          return true;
-        } else {
-          throw new Error(response.error);
-        }
-      } catch (error) {
-        console.error('Failed to leave party on backend:', error);
-        return false;
-      }
-    }
-
-    // LocalStorage fallback
-    const updatedParties = parties.map(party => {
-      if (party.id === partyId) {
-        const updatedMembers = party.members.filter(member => member.id !== profile.id);
-        return {
-          ...party,
-          currentMembers: updatedMembers.length,
-          members: updatedMembers,
-        };
-      }
-      return party;
-    });
-
-    setParties(updatedParties);
-    setMyParties(prev => prev.filter(id => id !== partyId));
-    localStorage.setItem('maplePartyListings', JSON.stringify(updatedParties));
-    return true;
-  };
-
-  const deleteParty = async (partyId: string) => {
-    if (!profile) return false;
-
-    if (backendAvailable) {
-      try {
-        const response = await partyApi.leave(partyId, profile.id); // This will delete if host leaves
-        
-        if (response.success) {
-          await loadPartiesFromBackend(); // Refresh parties list
-          setMyParties(prev => prev.filter(id => id !== partyId));
-          return true;
-        } else {
-          throw new Error(response.error);
-        }
-      } catch (error) {
-        console.error('Failed to delete party on backend:', error);
-        return false;
-      }
-    }
-
-    // LocalStorage fallback
-    const updatedParties = parties.filter(party => 
-      !(party.id === partyId && party.hostId === profile.id)
-    );
-    
-    setParties(updatedParties);
-    setMyParties(prev => prev.filter(id => id !== partyId));
-    localStorage.setItem('maplePartyListings', JSON.stringify(updatedParties));
-    return true;
-  };
-
-  const inviteToParty = async (partyId: string, playerName: string) => {
-    if (!profile) return false;
-
-    if (backendAvailable) {
-      try {
-        const response = await partyApi.invite(partyId, playerName, profile.id);
-        
-        if (response.success) {
-          return true;
-        } else {
-          throw new Error(response.error);
-        }
-      } catch (error) {
-        console.error('Failed to send invite:', error);
-        alert(error instanceof Error ? error.message : 'Failed to send invite');
-        return false;
-      }
-    }
-
-    // For localStorage mode, we can't really send invites
-    alert('Invite feature requires backend connection');
-    return false;
-  };
-
-  const getMyInvites = async () => {
-    if (!profile || !backendAvailable) return [];
-
     try {
-      const response = await partyApi.getInvites(profile.id);
-      return response.success ? response.data || [] : [];
-    } catch (error) {
-      console.error('Failed to get invites:', error);
-      return [];
-    }
-  };
+      // Try to create in backend
+      const backendParty = await partyApi.createParty({
+        hostId: newParty.hostId,
+        hostName: newParty.hostName,
+        hostLevel: profile.level,
+        hostJob: profile.job,
+        bossName: newParty.bossName,
+        difficulty: newParty.difficulty,
+        maxMembers: newParty.maxMembers,
+        scheduledTime: newParty.scheduledTime ? new Date(newParty.scheduledTime).toISOString() : undefined,
+        server: newParty.server,
+        requirements: newParty.requirements,
+        description: newParty.description,
+        isPrivate: newParty.isPrivate,
+        allowedPlayers: newParty.allowedPlayers,
+      });
 
-  const respondToInvite = async (inviteId: string, response: 'accept' | 'decline') => {
-    if (!profile || !backendAvailable) return false;
-
-    try {
-      const apiResponse = await partyApi.respondToInvite(inviteId, response, profile.id);
+      // Refresh parties list
+      await loadParties();
       
-      if (apiResponse.success) {
-        if (response === 'accept') {
-          await loadPartiesFromBackend(); // Refresh to show new party membership
-        }
-        return true;
-      } else {
-        throw new Error(apiResponse.error);
-      }
-    } catch (error) {
-      console.error('Failed to respond to invite:', error);
+      // Add to my parties
+      setMyParties(prev => [...prev, backendParty.id]);
+      
+      return backendParty;
+    } catch (err) {
+      console.error('Error creating party in backend:', err);
+      // Fallback to localStorage
+      setParties(prev => [...prev, newParty]);
+      setMyParties(prev => [...prev, newParty.id]);
+      return newParty;
+    }
+  };
+
+  const joinParty = async (partyId: string): Promise<boolean> => {
+    if (!profile) return false;
+
+    const party = parties.find(p => p.id === partyId);
+    if (!party) return false;
+
+    if (party.currentMembers >= party.maxMembers) {
+      alert('Party is full!');
       return false;
     }
+
+    if (party.members.some(m => m.id === profile.id)) {
+      alert('You are already in this party!');
+      return false;
+    }
+
+    try {
+      // Try to join in backend
+      await partyApi.joinParty(partyId, {
+        playerId: profile.id,
+        playerName: profile.name,
+        level: profile.level,
+        job: profile.job,
+      });
+
+      // Refresh parties list
+      await loadParties();
+      
+      // Add to my parties
+      setMyParties(prev => [...prev, partyId]);
+      
+      return true;
+    } catch (err) {
+      console.error('Error joining party in backend:', err);
+      
+      // Fallback to localStorage
+      const newMember = {
+        id: profile.id,
+        name: profile.name,
+        level: profile.level,
+        job: profile.job,
+        joinedAt: Date.now(),
+        isHost: false,
+      };
+
+      setParties(prev => prev.map(p => 
+        p.id === partyId 
+          ? { ...p, members: [...p.members, newMember], currentMembers: p.currentMembers + 1 }
+          : p
+      ));
+      setMyParties(prev => [...prev, partyId]);
+      
+      return true;
+    }
+  };
+
+  const leaveParty = async (partyId: string): Promise<boolean> => {
+    if (!profile) return false;
+
+    try {
+      // Try to leave in backend
+      await partyApi.leaveParty(partyId, profile.id);
+
+      // Refresh parties list
+      await loadParties();
+      
+      // Remove from my parties
+      setMyParties(prev => prev.filter(id => id !== partyId));
+      
+      return true;
+    } catch (err) {
+      console.error('Error leaving party in backend:', err);
+      
+      // Fallback to localStorage
+      setParties(prev => prev.map(p => {
+        if (p.id !== partyId) return p;
+        
+        const updatedMembers = p.members.filter(m => m.id !== profile.id);
+        return {
+          ...p,
+          members: updatedMembers,
+          currentMembers: updatedMembers.length,
+        };
+      }));
+      setMyParties(prev => prev.filter(id => id !== partyId));
+      
+      return true;
+    }
+  };
+
+  const deleteParty = async (partyId: string): Promise<boolean> => {
+    if (!profile) return false;
+
+    const party = parties.find(p => p.id === partyId);
+    if (!party || party.hostId !== profile.id) {
+      alert('You can only delete your own parties!');
+      return false;
+    }
+
+    try {
+      // Try to delete in backend
+      await partyApi.deleteParty(partyId);
+
+      // Refresh parties list
+      await loadParties();
+      
+      // Remove from my parties
+      setMyParties(prev => prev.filter(id => id !== partyId));
+      
+      return true;
+    } catch (err) {
+      console.error('Error deleting party in backend:', err);
+      
+      // Fallback to localStorage
+      setParties(prev => prev.filter(p => p.id !== partyId));
+      setMyParties(prev => prev.filter(id => id !== partyId));
+      
+      return true;
+    }
+  };
+
+  const logout = () => {
+    setProfile(null);
+    setMyParties([]);
   };
 
   return {
@@ -435,17 +382,15 @@ export function usePlayerSessionV2() {
     parties,
     myParties,
     isLoggedIn,
-    backendAvailable,
+    loading,
+    error,
     createProfile,
     updateProfile,
-    logout,
     createParty,
     joinParty,
     leaveParty,
     deleteParty,
-    inviteToParty,
-    getMyInvites,
-    respondToInvite,
-    refreshParties: loadPartiesFromBackend,
+    logout,
+    refreshParties: loadParties,
   };
 }

@@ -4,10 +4,10 @@ import { useState } from 'react';
 import { Header } from '@/components/Header';
 import { PartyList } from '@/components/PartyList';
 import { CreatePartyModal } from '@/components/CreatePartyModal';
-import { SampleDataLoader } from '@/components/SampleDataLoader';
+
 import { BossGuide } from '@/components/BossGuide';
 import { BuffScheduler } from '@/components/BuffScheduler';
-import { usePlayerSession } from '@/hooks/usePlayerSession';
+import { usePlayerSessionV2 as usePlayerSession } from '@/hooks/usePlayerSessionV2';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { Shield, Crown, Users, Trophy, Sparkles, Calendar, Swords } from 'lucide-react';
 
@@ -23,7 +23,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen">
-      <SampleDataLoader />
       <Header />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -142,7 +141,7 @@ export default function Home() {
               className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
                 activeTab === 'parties'
                   ? 'bg-maple-blue text-white shadow-lg'
-                  : 'text-maple-dark hover:bg-maple-light'
+                  : 'text-maple-dark hover:bg-blue-100 hover:text-maple-blue'
               }`}
             >
               <Swords className="w-5 h-5" />
@@ -153,7 +152,7 @@ export default function Home() {
               className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
                 activeTab === 'buffs'
                   ? 'bg-maple-purple text-white shadow-lg'
-                  : 'text-maple-dark hover:bg-maple-light'
+                  : 'text-maple-dark hover:bg-purple-100 hover:text-maple-purple'
               }`}
             >
               <Calendar className="w-5 h-5" />
@@ -164,7 +163,7 @@ export default function Home() {
               className={`flex items-center gap-2 px-6 py-3 rounded-lg font-medium transition-all ${
                 activeTab === 'guide'
                   ? 'bg-maple-orange text-white shadow-lg'
-                  : 'text-maple-dark hover:bg-maple-light'
+                  : 'text-maple-dark hover:bg-orange-100 hover:text-maple-orange'
               }`}
             >
               <Shield className="w-5 h-5" />
@@ -175,24 +174,7 @@ export default function Home() {
 
         {/* Tab Content */}
         {activeTab === 'parties' && (
-          <>
-            {/* Debug Button (temporário) */}
-            {parties.length === 0 && (
-              <div className="mb-4 text-center">
-                <button
-                  onClick={() => {
-                    const { loadSampleData } = require('@/data/sampleData');
-                    loadSampleData();
-                    window.location.reload();
-                  }}
-                  className="maple-button px-4 py-2 text-sm bg-maple-orange"
-                >
-                  🔧 Carregar Dados de Exemplo (Debug)
-                </button>
-              </div>
-            )}
-            <PartyList onCreateParty={() => setShowCreateParty(true)} />
-          </>
+          <PartyList onCreateParty={() => setShowCreateParty(true)} />
         )}
 
         {activeTab === 'buffs' && <BuffScheduler />}

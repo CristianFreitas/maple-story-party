@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { useLanguage } from '@/contexts/LanguageContext';
 import { usePlayerSession } from '@/hooks/usePlayerSession';
 import { buffApi } from '@/services/api';
-import { Calendar, Clock, MapPin, Users, ThumbsUp, ThumbsDown, Flag, CheckCircle, XCircle } from 'lucide-react';
+import { Calendar, MapPin, Users, ThumbsUp, ThumbsDown, Flag, CheckCircle, ExternalLink } from 'lucide-react';
+import { createBuffScheduleEvent, openGoogleCalendar } from '@/utils/googleCalendar';
 
 interface BuffSchedule {
   id: string;
@@ -103,6 +104,22 @@ export function BuffScheduler() {
 
     if (response.success) {
       setShowCreateModal(false);
+      
+      // Ask if user wants to add to Google Calendar
+      const addToCalendar = window.confirm('Schedule created successfully! Would you like to add it to your Google Calendar?');
+      
+      if (addToCalendar) {
+        const event = createBuffScheduleEvent({
+          playerName: profile.name,
+          buffType: formData.buffType,
+          scheduledTime: new Date(scheduledTimestamp),
+          location: formData.location,
+          description: formData.description,
+          server: profile.server
+        });
+        openGoogleCalendar(event);
+      }
+      
       setFormData({
         buffType: 'exp',
         scheduledTime: '',
@@ -329,6 +346,29 @@ export function BuffScheduler() {
                 </div>
 
                 <div className="flex flex-col gap-2 mt-4 md:mt-0">
+                  {/* Google Calendar button */}
+                  <div className="flex justify-center mb-2">
+                    <button
+                      onClick={() => {
+                        const event = createBuffScheduleEvent({
+                          playerName: schedule.playerName,
+                          buffType: schedule.buffType,
+                          scheduledTime: new Date(schedule.scheduledTime),
+                          location: schedule.location,
+                          description: schedule.description,
+                          server: schedule.server
+                        });
+                        openGoogleCalendar(event);
+                      }}
+                      className="flex items-center gap-2 px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-sm transition-colors"
+                      title="Add to Google Calendar"
+                    >
+                      <Calendar className="w-4 h-4" />
+                      <ExternalLink className="w-3 h-3" />
+                      Add to Calendar
+                    </button>
+                  </div>
+
                   {/* Vote buttons */}
                   <div className="flex items-center gap-2">
                     <button
@@ -400,7 +440,7 @@ export function BuffScheduler() {
                   </label>
                   <select
                     value={formData.buffType}
-                    onChange={(e) => setFormData(prev => ({ ...prev, buffType: e.target.value as any }))}
+                    onChange={(e) => setFormData(prev => ({ ...prev, buffType: e.target.value as 'exp' | 'drop' | 'burning' | 'other' }))}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-maple-blue focus:border-transparent"
                     required
                   >

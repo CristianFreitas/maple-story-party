@@ -15,6 +15,14 @@ export interface PlayerProfile {
   preferredDifficulty: 'normal' | 'chaos' | 'hard' | 'extreme';
   createdAt: number;
   lastActive: number;
+  reputation: number; // Reputation score (0-200)
+  reputationHistory: Array<{
+    id: string;
+    change: number;
+    reason: string;
+    fromPlayer?: string;
+    timestamp: number;
+  }>;
 }
 
 export interface PartyListing {
@@ -96,13 +104,20 @@ export function usePlayerSession() {
     return `${adjective}${noun}${numbers}`;
   };
 
-  const createProfile = (profileData: Omit<PlayerProfile, 'id' | 'uniqueId' | 'createdAt' | 'lastActive'>) => {
+  const createProfile = (profileData: Omit<PlayerProfile, 'id' | 'uniqueId' | 'createdAt' | 'lastActive' | 'reputation' | 'reputationHistory'>) => {
     const newProfile: PlayerProfile = {
       ...profileData,
       id: crypto.randomUUID(),
       uniqueId: generateUniqueId(),
       createdAt: Date.now(),
       lastActive: Date.now(),
+      reputation: 100, // Starting reputation
+      reputationHistory: [{
+        id: crypto.randomUUID(),
+        change: 100,
+        reason: 'Account created',
+        timestamp: Date.now()
+      }]
     };
     setProfile(newProfile);
     return newProfile;
@@ -206,6 +221,52 @@ export function usePlayerSession() {
     return true;
   };
 
+  // Reputation management
+  const addReputationChange = (change: number, reason: string, fromPlayer?: string) => {
+    if (!profile) return;
+
+    const newReputation = Math.max(0, Math.min(200, profile.reputation + change));
+    const reputationEntry = {
+      id: crypto.randomUUID(),
+      change,
+      reason,
+      fromPlayer,
+      timestamp: Date.now()
+    };
+
+    const updatedProfile = {
+      ...profile,
+      reputation: newReputation,
+      reputationHistory: [...profile.reputationHistory, reputationEntry],
+      lastActive: Date.now()
+    };
+
+    setProfile(updatedProfile);
+    return reputationEntry;
+  };
+
+  const getReputationLevel = (reputation: number) => {
+    if (reputation >= 180) return { level: 'Legendary', color: 'text-yellow-500', bg: 'bg-yellow-100' };
+    if (reputation >= 150) return { level: 'Excellent', color: 'text-purple-500', bg: 'bg-purple-100' };
+    if (reputation >= 120) return { level: 'Good', color: 'text-green-500', bg: 'bg-green-100' };
+    if (reputation >= 80) return { level: 'Average', color: 'text-blue-500', bg: 'bg-blue-100' };
+    if (reputation >= 50) return { level: 'Poor', color: 'text-orange-500', bg: 'bg-orange-100' };
+    return { level: 'Terrible', color: 'text-red-500', bg: 'bg-red-100' };
+  };
+
+  const canPerformAction = (action: 'create_party' | 'join_party' | 'schedule_buff' | 'vote') => {
+    if (!profile) return false;
+    
+    const minReputation = {
+      create_party: 20,
+      join_party: 10,
+      schedule_buff: 30,
+      vote: 15
+    };
+
+    return profile.reputation >= minReputation[action];
+  };
+
   return {
     profile,
     parties,
@@ -218,6 +279,9 @@ export function usePlayerSession() {
     joinParty,
     leaveParty,
     deleteParty,
+    addReputationChange,
+    getReputationLevel,
+    canPerformAction,
   };
 }
 
