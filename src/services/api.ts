@@ -1,12 +1,7 @@
 // API Service para comunicação com o backend
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api';
+import { ApiResponse, PlayerData, PartyData, BuffScheduleData } from '@/types/api';
 
-export interface ApiResponse<T = any> {
-  success: boolean;
-  data?: T;
-  message?: string;
-  error?: string;
-}
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3002/api';
 
 export interface PaginatedResponse<T> extends ApiResponse<T[]> {
   pagination: {
@@ -50,7 +45,7 @@ async function apiRequest<T>(
 // Player API
 export const playerApi = {
   // Criar ou atualizar player
-  async createOrUpdate(playerData: any): Promise<ApiResponse<any>> {
+  async createOrUpdate(playerData: Partial<PlayerData>): Promise<ApiResponse<PlayerData>> {
     return apiRequest('/players', {
       method: 'POST',
       body: JSON.stringify(playerData),
@@ -58,22 +53,22 @@ export const playerApi = {
   },
 
   // Buscar player por uniqueId
-  async getByUniqueId(uniqueId: string): Promise<ApiResponse<any>> {
+  async getByUniqueId(uniqueId: string): Promise<ApiResponse<PlayerData>> {
     return apiRequest(`/players/by-unique-id/${uniqueId}`);
   },
 
   // Buscar player por ID
-  async getById(id: string): Promise<ApiResponse<any>> {
+  async getById(id: string): Promise<ApiResponse<PlayerData>> {
     return apiRequest(`/players/${id}`);
   },
 
   // Buscar players por servidor
-  async getByServer(server: string, page: number = 1, limit: number = 20): Promise<PaginatedResponse<any>> {
+  async getByServer(server: string, page: number = 1, limit: number = 20): Promise<ApiResponse<PlayerData[]>> {
     return apiRequest(`/players/server/${server}?page=${page}&limit=${limit}`);
   },
 
   // Atualizar atividade
-  async updateActivity(id: string): Promise<ApiResponse<any>> {
+  async updateActivity(id: string): Promise<ApiResponse<PlayerData>> {
     return apiRequest(`/players/${id}/activity`, {
       method: 'POST',
     });
@@ -89,7 +84,7 @@ export const partyApi = {
     server?: string;
     difficulty?: string;
     bossName?: string;
-  } = {}): Promise<PaginatedResponse<any>> {
+  } = {}): Promise<ApiResponse<PartyData[]>> {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -101,7 +96,7 @@ export const partyApi = {
   },
 
   // Criar party
-  async create(partyData: any): Promise<ApiResponse<any>> {
+  async create(partyData: Partial<PartyData>): Promise<ApiResponse<PartyData>> {
     return apiRequest('/parties', {
       method: 'POST',
       body: JSON.stringify(partyData),
@@ -154,7 +149,7 @@ export const buffApi = {
     limit?: number;
     server?: string;
     buffType?: string;
-  } = {}): Promise<PaginatedResponse<any>> {
+  } = {}): Promise<ApiResponse<BuffScheduleData[]>> {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => {
       if (value !== undefined) {
@@ -277,7 +272,7 @@ export class ApiWebSocket {
     }
   }
 
-  onMessage(callback: (data: any) => void) {
+  onMessage(callback: (data: Record<string, unknown>) => void) {
     if (this.ws) {
       this.ws.onmessage = (event) => {
         try {

@@ -77,37 +77,41 @@ export function usePlayerSessionV2() {
   const loadParties = async () => {
     try {
       setLoading(true);
-      const backendParties = await partyApi.getParties();
+      const response = await partyApi.list();
+      if (!response.success || !response.data) {
+        throw new Error(response.error || 'Failed to fetch parties');
+      }
+      const backendParties = response.data;
       
       // Transform backend data to frontend format
-      const transformedParties: PartyListing[] = backendParties.map((party: Record<string, any>) => ({
-        id: party.id,
-        hostId: party.host_id,
-        hostName: party.host_name,
-        bossName: party.boss_name,
-        difficulty: party.difficulty,
-        currentMembers: party.current_members,
-        maxMembers: party.max_members,
-        scheduledTime: party.scheduled_time ? new Date(party.scheduled_time).getTime() : undefined,
-        server: party.server,
-        requirements: party.requirements || '',
-        description: party.description || '',
-        isPrivate: party.is_private || false,
-        allowedPlayers: party.allowed_players || [],
-        createdAt: new Date(party.created_at).getTime(),
-        members: (party.party_members || []).map((member: Record<string, any>) => ({
-          id: member.player_id,
-          name: member.player_name,
-          level: member.level,
-          job: member.job,
-          joinedAt: new Date(member.joined_at).getTime(),
-          isHost: member.is_host || false,
+      const transformedParties: PartyListing[] = (backendParties as unknown as Record<string, unknown>[]).map((party) => ({
+        id: party.id as string,
+        hostId: party.host_id as string,
+        hostName: party.host_name as string,
+        bossName: party.boss_name as string,
+        difficulty: party.difficulty as 'normal' | 'chaos' | 'hard' | 'extreme',
+        currentMembers: party.current_members as number,
+        maxMembers: party.max_members as number,
+        scheduledTime: party.scheduled_time ? new Date(party.scheduled_time as string).getTime() : undefined,
+        server: party.server as string,
+        requirements: (party.requirements as string) || '',
+        description: (party.description as string) || '',
+        isPrivate: (party.is_private as boolean) || false,
+        allowedPlayers: (party.allowed_players as string[]) || [],
+        createdAt: new Date(party.created_at as string).getTime(),
+        members: ((party.party_members as Record<string, unknown>[]) || []).map((member) => ({
+          id: member.player_id as string,
+          name: member.player_name as string,
+          level: member.level as number,
+          job: member.job as string,
+          joinedAt: new Date(member.joined_at as string).getTime(),
+          isHost: (member.is_host as boolean) || false,
         })),
-        invites: (party.party_invites || []).map((invite: Record<string, any>) => ({
-          id: invite.id,
-          invitedPlayerName: invite.invited_player_name,
-          status: invite.status,
-          createdAt: new Date(invite.created_at).getTime(),
+        invites: ((party.party_invites as Record<string, unknown>[]) || []).map((invite) => ({
+          id: invite.id as string,
+          invitedPlayerName: invite.invited_player_name as string,
+          status: invite.status as 'pending' | 'accepted' | 'declined' | 'expired',
+          createdAt: new Date(invite.created_at as string).getTime(),
         })),
       }));
 
@@ -148,14 +152,13 @@ export function usePlayerSessionV2() {
 
     try {
       // Try to create in backend
-      await playerApi.createPlayer({
+      await playerApi.createOrUpdate({
         uniqueId: newProfile.uniqueId,
         name: newProfile.name,
         level: newProfile.level,
         job: newProfile.job,
         server: newProfile.server,
-        walletAddress: newProfile.walletAddress,
-        favoriteClasses: newProfile.favoriteClasses,
+        favoriteClasses: JSON.stringify(newProfile.favoriteClasses),
         preferredDifficulty: newProfile.preferredDifficulty,
       });
       
@@ -176,13 +179,14 @@ export function usePlayerSessionV2() {
 
     try {
       // Try to update in backend
-      await playerApi.updatePlayer(profile.id, {
+      await playerApi.createOrUpdate({
+        id: profile.id,
+        uniqueId: updatedProfile.uniqueId,
         name: updatedProfile.name,
         level: updatedProfile.level,
         job: updatedProfile.job,
         server: updatedProfile.server,
-        walletAddress: updatedProfile.walletAddress,
-        favoriteClasses: updatedProfile.favoriteClasses,
+        favoriteClasses: JSON.stringify(updatedProfile.favoriteClasses),
         preferredDifficulty: updatedProfile.preferredDifficulty,
       });
 
@@ -219,11 +223,9 @@ export function usePlayerSessionV2() {
 
     try {
       // Try to create in backend
-      const backendParty = await partyApi.createParty({
+      const backendParty = await partyApi.create({
         hostId: newParty.hostId,
         hostName: newParty.hostName,
-        hostLevel: profile.level,
-        hostJob: profile.job,
         bossName: newParty.bossName,
         difficulty: newParty.difficulty,
         maxMembers: newParty.maxMembers,
@@ -232,14 +234,16 @@ export function usePlayerSessionV2() {
         requirements: newParty.requirements,
         description: newParty.description,
         isPrivate: newParty.isPrivate,
-        allowedPlayers: newParty.allowedPlayers,
+        allowedPlayers: JSON.stringify(newParty.allowedPlayers || []),
       });
 
       // Refresh parties list
       await loadParties();
       
       // Add to my parties
-      setMyParties(prev => [...prev, backendParty.id]);
+      if (backendParty.success && backendParty.data) {
+        setMyParties(prev => [...prev, backendParty.data!.id]);
+      }
       
       return backendParty;
     } catch (err) {
@@ -269,11 +273,9 @@ export function usePlayerSessionV2() {
 
     try {
       // Try to join in backend
-      await partyApi.joinParty(partyId, {
+      await partyApi.join(partyId, {
         playerId: profile.id,
         playerName: profile.name,
-        level: profile.level,
-        job: profile.job,
       });
 
       // Refresh parties list
@@ -312,7 +314,7 @@ export function usePlayerSessionV2() {
 
     try {
       // Try to leave in backend
-      await partyApi.leaveParty(partyId, profile.id);
+      await partyApi.leave(partyId, profile.id);
 
       // Refresh parties list
       await loadParties();
@@ -352,7 +354,8 @@ export function usePlayerSessionV2() {
 
     try {
       // Try to delete in backend
-      await partyApi.deleteParty(partyId);
+      // TODO: Implement delete party API endpoint
+      // await partyApi.delete(partyId);
 
       // Refresh parties list
       await loadParties();

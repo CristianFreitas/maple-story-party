@@ -38,9 +38,9 @@ export function PartyChat({ partyId, partyName, members, onClose }: PartyChatPro
   const [newMessage, setNewMessage] = useState('');
   const [isMinimized, setIsMinimized] = useState(false);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
-  const [onlineUsers, setOnlineUsers] = useState<string[]>([]);
+  // const [onlineUsers, setOnlineUsers] = useState<string[]>([]); // Future use
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const typingTimeoutRef = useRef<NodeJS.Timeout>();
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Connect to WebSocket and join party chat
   useEffect(() => {
@@ -84,7 +84,6 @@ export function PartyChat({ partyId, partyName, members, onClose }: PartyChatPro
         timestamp: data.timestamp,
       };
       setMessages(prev => [...prev, systemMessage]);
-      setOnlineUsers(prev => [...prev.filter(u => u !== data.playerName), data.playerName]);
     };
 
     // Handle user left chat
@@ -97,7 +96,6 @@ export function PartyChat({ partyId, partyName, members, onClose }: PartyChatPro
         timestamp: data.timestamp,
       };
       setMessages(prev => [...prev, systemMessage]);
-      setOnlineUsers(prev => prev.filter(u => u !== data.playerName));
     };
 
     // Handle typing indicators
@@ -121,7 +119,7 @@ export function PartyChat({ partyId, partyName, members, onClose }: PartyChatPro
       off('userLeftChat', handleUserLeft);
       off('userTyping', handleUserTyping);
     };
-  }, [isConnected, partyId, profile, joinPartyChat, on, off]);
+  }, [isConnected, partyId, profile, partyName, joinPartyChat, on, off]);
 
   // Load initial messages from localStorage as fallback
   useEffect(() => {

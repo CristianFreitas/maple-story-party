@@ -24,7 +24,13 @@ interface BuffSchedule {
   upvotes: number;
   downvotes: number;
   reports: number;
-  votes: any[];
+  votes: Array<{
+    id: string;
+    playerId: string;
+    voteType: 'upvote' | 'downvote' | 'report';
+    reason?: string;
+    timestamp: number;
+  }>;
 }
 
 interface BuffStats {
@@ -48,17 +54,19 @@ export function BuffScheduler() {
   const [buffTypeFilter, setBuffTypeFilter] = useState('');
 
   // Form states
-  const [formData, setFormData] = useState({
-    buffType: 'exp' as const,
+  const [formData, setFormData] = useState<{
+    buffType: 'exp' | 'drop' | 'burning' | 'other';
+    scheduledTime: string;
+    scheduledDate: string;
+    location: string;
+    description: string;
+  }>({
+    buffType: 'exp',
     scheduledTime: '',
     scheduledDate: '',
     location: '',
     description: '',
   });
-
-  useEffect(() => {
-    loadData();
-  }, [serverFilter, buffTypeFilter]);
 
   const loadData = async () => {
     setLoading(true);
@@ -68,8 +76,12 @@ export function BuffScheduler() {
         buffApi.getStats(serverFilter || undefined)
       ]);
 
-      if (schedulesResponse.success) {
-        setSchedules(schedulesResponse.data || []);
+      if (schedulesResponse.success && schedulesResponse.data) {
+        const mappedSchedules = schedulesResponse.data.map((schedule: any) => ({
+          ...schedule,
+          votes: schedule.votes ? JSON.parse(schedule.votes) : [],
+        }));
+        setSchedules(mappedSchedules);
       }
 
       if (statsResponse.success) {
@@ -81,6 +93,10 @@ export function BuffScheduler() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    loadData();
+  }, [serverFilter, buffTypeFilter]);
 
   const handleCreateSchedule = async (e: React.FormEvent) => {
     e.preventDefault();

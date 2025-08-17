@@ -148,10 +148,10 @@ export function useProfileSync() {
   };
 
   // Get user's sync history
-  const getSyncHistory = (profileId: string) => {
+  const getSyncHistory = (profileId: string): Array<{ code: string; timestamp: number; deviceId: string }> => {
     try {
       const history = JSON.parse(localStorage.getItem(`maple_user_syncs_${profileId}`) || '[]');
-      return history.sort((a: any, b: any) => b.timestamp - a.timestamp);
+      return history.sort((a: { timestamp: number }, b: { timestamp: number }) => b.timestamp - a.timestamp);
     } catch (error) {
       return [];
     }

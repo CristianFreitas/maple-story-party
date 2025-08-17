@@ -17,6 +17,7 @@ export function CreatePartyModal({ isOpen, onClose }: CreatePartyModalProps) {
   
   const [formData, setFormData] = useState({
     bossName: '',
+    difficulty: 'normal' as 'normal' | 'chaos' | 'hard' | 'extreme',
     maxMembers: 6,
     server: profile?.server || '',
     scheduledTime: '',
@@ -51,6 +52,7 @@ export function CreatePartyModal({ isOpen, onClose }: CreatePartyModalProps) {
     // Reset form
     setFormData({
       bossName: '',
+      difficulty: 'normal' as 'normal' | 'chaos' | 'hard' | 'extreme',
       maxMembers: 6,
       server: profile?.server || '',
       scheduledTime: '',
@@ -162,6 +164,24 @@ export function CreatePartyModal({ isOpen, onClose }: CreatePartyModalProps) {
                 {servers.map(server => (
                   <option key={server} value={server}>{server}</option>
                 ))}
+              </select>
+            </div>
+
+            {/* Difficulty */}
+            <div>
+              <label className="block text-sm font-bold text-maple-dark mb-2">
+                Difficulty *
+              </label>
+              <select
+                value={formData.difficulty}
+                onChange={(e) => setFormData(prev => ({ ...prev, difficulty: e.target.value as 'normal' | 'chaos' | 'hard' | 'extreme' }))}
+                className="w-full px-4 py-2 border-2 border-maple-blue rounded-lg focus:outline-none focus:border-maple-orange"
+                required
+              >
+                <option value="normal">Normal</option>
+                <option value="chaos">Chaos</option>
+                <option value="hard">Hard</option>
+                <option value="extreme">Extreme</option>
               </select>
             </div>
 

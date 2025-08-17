@@ -129,7 +129,6 @@ export interface Translation {
     favoriteClassesOptional: string;
     walletConnected: string;
     updateProfile: string;
-    createProfile: string;
     fillRequired: string;
   };
 
@@ -316,7 +315,6 @@ export const translations: Record<'en' | 'pt', Translation> = {
       favoriteClassesOptional: "Favorite Classes (optional)",
       walletConnected: "Connected Wallet:",
       updateProfile: "Update Profile",
-      createProfile: "Create Profile",
       fillRequired: "Please fill in all required fields!",
     },
     bossGuide: {
@@ -491,7 +489,6 @@ export const translations: Record<'en' | 'pt', Translation> = {
       favoriteClassesOptional: "Classes Favoritas (opcional)",
       walletConnected: "Wallet Conectada:",
       updateProfile: "Atualizar Perfil",
-      createProfile: "Criar Perfil",
       fillRequired: "Por favor, preencha todos os campos obrigatórios!",
     },
     bossGuide: {

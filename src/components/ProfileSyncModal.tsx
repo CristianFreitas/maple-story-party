@@ -245,7 +245,7 @@ export function ProfileSyncModal({ isOpen, onClose }: ProfileSyncModalProps) {
                   </p>
                 ) : (
                   <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {syncHistory.map((entry: any, index: number) => (
+                    {syncHistory.map((entry: { code: string; timestamp: number; deviceId: string }, index: number) => (
                       <div key={index} className="flex items-center justify-between bg-white rounded p-3 text-sm">
                         <div>
                           <div className="font-mono font-medium">{entry.code}</div>

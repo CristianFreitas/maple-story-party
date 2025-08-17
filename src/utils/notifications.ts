@@ -6,7 +6,7 @@ export interface NotificationOptions {
   icon?: string;
   badge?: string;
   tag?: string;
-  data?: any;
+  data?: Record<string, unknown>;
   actions?: Array<{
     action: string;
     title: string;
@@ -69,7 +69,7 @@ class NotificationManager {
           actions: options.actions,
           requireInteraction: false,
           silent: false,
-        });
+        } as any);
       } else {
         // Fallback to regular notification
         new Notification(options.title, {

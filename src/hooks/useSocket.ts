@@ -22,7 +22,7 @@ interface SocketEvents {
   userJoinedChat: (data: { playerName: string; playerId: string; timestamp: number }) => void;
   userLeftChat: (data: { playerName: string; timestamp: number }) => void;
   userTyping: (data: { playerName: string; isTyping: boolean }) => void;
-  partyUpdated: (data: { action: string; data: any; timestamp: number }) => void;
+  partyUpdated: (data: { action: string; data: Record<string, unknown>; timestamp: number }) => void;
 }
 
 export function useSocket(options: UseSocketOptions = {}) {
@@ -138,7 +138,7 @@ export function useSocket(options: UseSocketOptions = {}) {
     return () => {
       disconnect();
     };
-  }, [autoConnect, serverUrl]);
+  }, [autoConnect, serverUrl]); // connect and disconnect are stable functions
 
   return {
     socket: socketRef.current,
